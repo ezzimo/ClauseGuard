@@ -1,0 +1,30 @@
+{
+  "contract_id": "test-contract",
+  "analysis_date": "2026-07-14",
+  "overall_risk": "moyen",
+  "executive_summary": "Le contrat présente un risque modéré avec quelques clauses à surveiller.",
+  "clauses": [
+    {
+      "clause_id": "ART_1",
+      "reference": "Article 1",
+      "original_risk_level": "moyen",
+      "corrected_risk_level": "moyen",
+      "human_decision": "approve",
+      "comment": "Validé"
+    }
+  ],
+  "audit_log": [
+    {
+      "actor": "system",
+      "event": "analysis"
+    }
+  ],
+  "dashboard_metrics": {
+    "total_clauses": 1,
+    "high_risk_count": 0,
+    "medium_risk_count": 1,
+    "low_risk_count": 0,
+    "pending_decisions": 0
+  },
+  "disclaimer": "Cette analyse ne constitue pas un avis juridique."
+}

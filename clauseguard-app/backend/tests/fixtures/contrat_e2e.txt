@@ -1,0 +1,46 @@
+CONTRAT DE PRESTATION DE SERVICES
+
+Entre les soussignés :
+
+M. Rachid Benjelloun, demeurant à Casablanca, dûment habilité pour les besoins des présentes,
+et
+Mme Salma El Fassi, demeurant à Rabat, également habilitée.
+
+Ci-après dénommées ensemble "les Parties" ou individuellement "la Partie".
+
+Article 1 - Objet du contrat
+Le présent contrat a pour objet la fourniture par le Prestataire d'une prestation de services informatiques au Client.
+
+Article 2 - Prix et modalités de paiement
+Le montant total des prestations est fixé à 840 000 MAD hors taxes.
+Le paiement s'effectuera par virement bancaire sur le RIB suivant : 011 780 0000123456789012 34.
+Tout retard de paiement donnera lieu à des pénalités de retard au taux de 2% par mois.
+
+Article 3 - Durée
+Le présent contrat est conclu pour une durée de trente-six mois à compter de sa signature.
+
+Article 4 - Obligations des parties
+Rachid Benjelloun s'engage à fournir les moyens nécessaires à l'exécution de la prestation.
+Salma El Fassi s'engage à respecter les délais convenus.
+Benjelloun reste responsable de la qualité des livrables.
+El Fassi pourra demander des modifications dans la limite de 10% du périmètre initial.
+Rachid a signé le cahier des charges.
+
+Article 5 - Identifiants administratifs
+Le Prestataire est immatriculé sous les RC 445621 et 98745 auprès du tribunal de commerce.
+Son numéro IF est 123456.
+Son numéro CNSS est 9876543.
+Son ICE est 001234567890123.
+IBAN: MA64011519000001205000534921.
+Référence interne: 87654321.
+
+Article 6 - Confidentialité
+Les Parties s'engagent à garder strictement confidentielles les informations échangées dans le cadre du présent contrat.
+
+Article 7 - Résiliation
+Chaque Partie pourra résilier le présent contrat moyennant un préavis de trente (30) jours.
+
+Fait à Casablanca, en deux exemplaires originaux.
+
+Rachid Benjelloun
+Salma El Fassi

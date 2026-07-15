@@ -1,0 +1,21 @@
+{
+  "audit_status": "completed",
+  "audited_findings": [
+    {
+      "clause_id": "ART_1",
+      "reference": "Article 1",
+      "clause_text": "Le Prestataire est seul responsable de ses employés.",
+      "type": "responsabilité",
+      "original_risk_level": "moyen",
+      "audit_decision": "accept",
+      "audit_reason": "Clause équilibrée",
+      "corrected_risk_level": "moyen",
+      "risk_summary": "Pas de déséquilibhe majeur",
+      "source_excerpts": ["Le Prestataire est seul responsable"],
+      "proposed_rewrite": null,
+      "human_review_required": false
+    }
+  ],
+  "global_audit_notes": ["Analyse terminée"],
+  "disclaimer": "Cette analyse ne constitue pas un avis juridique."
+}

@@ -1,0 +1,5 @@
+This is a sample contract for testing purposes.
+
+Article 1: The parties agree to the terms set forth herein.
+Article 2: Payment shall be made within thirty (30) days.
+Article 3: This agreement is governed by the laws of France.
