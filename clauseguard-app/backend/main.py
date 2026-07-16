@@ -29,6 +29,7 @@ from services.auth import authenticate_user, create_token_pair, get_current_user
 from services.extract import extract_text
 from services.fusion import FusionClient
 from services.anonymizer import AnonymizationLeakError, mask_pii
+from services.anonymizer.party_extractor import extract_party_names
 
 app = FastAPI(title="ClauseGuard API", version="0.1.0")
 
@@ -167,6 +168,8 @@ async def upload_contract(
             party_names = []
     except Exception:
         party_names = []
+    if not party_names:
+        party_names = extract_party_names(text)
     try:
         masked_text, pii_mapping, _stats = mask_pii(text, party_names)
     except AnonymizationLeakError as exc:

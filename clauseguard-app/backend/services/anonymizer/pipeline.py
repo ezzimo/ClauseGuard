@@ -1,9 +1,10 @@
 """PII anonymization pipeline.
 
 Steps:
-1. Party names (full + surname) masking.
-2. Ordered regex rule masking.
-3. Final verification pass + optional leak error.
+1. Ordered regex rule masking (email, phone, IDs, etc.).
+2. Party names (full + surname) masking.
+3. Optional NER person detection.
+4. Final verification pass + optional leak error.
 """
 
 import re
@@ -172,16 +173,17 @@ def _final_verification(
     leaks_found = 0
     masked = text
 
+    # Re-check regex rules first so emails/phones are not broken by party-name
+    # replacements.
+    for category, rule in get_rules():
+        masked, count = _apply_rule_matches(masked, category, rule, store)
+        leaks_found += count
+
     # Re-check party names.
     prev = masked
     masked = _mask_party_names(masked, party_names, store)
     if masked != prev:
         leaks_found += 1
-
-    # Re-check regex rules.
-    for category, rule in get_rules():
-        masked, count = _apply_rule_matches(masked, category, rule, store)
-        leaks_found += count
 
     if leaks_found:
         stats["second_pass_fixes"] = stats.get("second_pass_fixes", 0) + leaks_found
@@ -228,10 +230,10 @@ def mask_pii(text: str, party_names: Optional[list[str]] = None) -> tuple[str, d
     stats: dict = {"second_pass_fixes": 0}
 
     masked = text
+    masked = _mask_with_rules(masked, store, stats)
     if party_names:
         masked = _mask_party_names(masked, party_names, store)
     masked = _mask_people(masked, store, stats)
-    masked = _mask_with_rules(masked, store, stats)
     masked = _final_verification(masked, party_names or [], store, stats)
 
     return masked, store.mapping, stats

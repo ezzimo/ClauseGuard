@@ -19,17 +19,35 @@ async function authHeaders() {
   return { Authorization: `Bearer ${token}` };
 }
 
-async function uploadContract(file, context) {
+async function fetchWithAuth(url, options = {}) {
   const headers = await authHeaders();
+  const res = await fetch(url, {
+    ...options,
+    headers: { ...headers, ...options.headers },
+  });
+
+  if (res.status === 401) {
+    // Token may have expired; re-login once and retry.
+    await login();
+    const freshHeaders = await authHeaders();
+    return fetch(url, {
+      ...options,
+      headers: { ...freshHeaders, ...options.headers },
+    });
+  }
+
+  return res;
+}
+
+async function uploadContract(file, context) {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("contract_type", context.contract_type || "");
   formData.append("cote", context.cote || "");
   formData.append("montant", context.montant || "");
   formData.append("parties", JSON.stringify(context.parties || []));
-  const res = await fetch(`${API_URL}/api/contracts/upload`, {
+  const res = await fetchWithAuth(`${API_URL}/api/contracts/upload`, {
     method: "POST",
-    headers,
     body: formData,
   });
   if (!res.ok) throw new Error("Échec de l'envoi du contrat");
@@ -37,27 +55,23 @@ async function uploadContract(file, context) {
 }
 
 async function analyzeContract(contractId) {
-  const headers = await authHeaders();
-  const res = await fetch(`${API_URL}/api/contracts/${contractId}/analyze`, {
+  const res = await fetchWithAuth(`${API_URL}/api/contracts/${contractId}/analyze`, {
     method: "POST",
-    headers,
   });
   if (!res.ok) throw new Error("Échec de l'analyse");
   return res.json();
 }
 
 async function getContract(contractId) {
-  const headers = await authHeaders();
-  const res = await fetch(`${API_URL}/api/contracts/${contractId}`, { headers });
+  const res = await fetchWithAuth(`${API_URL}/api/contracts/${contractId}`);
   if (!res.ok) throw new Error("Contrat introuvable");
   return res.json();
 }
 
 async function submitDecisions(contractId, decisions) {
-  const headers = await authHeaders();
-  const res = await fetch(`${API_URL}/api/contracts/${contractId}/decisions`, {
+  const res = await fetchWithAuth(`${API_URL}/api/contracts/${contractId}/decisions`, {
     method: "POST",
-    headers: { ...headers, "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ decisions }),
   });
   if (!res.ok) throw new Error("Échec de l'enregistrement des décisions");
@@ -65,18 +79,15 @@ async function submitDecisions(contractId, decisions) {
 }
 
 async function generateReport(contractId) {
-  const headers = await authHeaders();
-  const res = await fetch(`${API_URL}/api/contracts/${contractId}/report`, {
+  const res = await fetchWithAuth(`${API_URL}/api/contracts/${contractId}/report`, {
     method: "POST",
-    headers,
   });
   if (!res.ok) throw new Error("Échec de la génération du rapport");
   return res.json();
 }
 
 async function getReport(contractId) {
-  const headers = await authHeaders();
-  const res = await fetch(`${API_URL}/api/contracts/${contractId}/report`, { headers });
+  const res = await fetchWithAuth(`${API_URL}/api/contracts/${contractId}/report`);
   if (!res.ok) throw new Error("Rapport introuvable");
   return res.json();
 }

@@ -28,6 +28,18 @@ ORDERED_RULES: list[tuple[str, re.Pattern]] = [
         ),
     ),
     ("EMAIL", re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")),
+    # Addresses: only when introduced by a location keyword (situé au, sis au, etc.)
+    # to avoid over-masking ordinary text.  Matching stops at the first comma that
+    # is not part of the "number street, city" pattern.
+    (
+        "ADDRESS",
+        re.compile(
+            r"\b(?:situé(?:e)?\s+au|sis\s+au|au\s+siège\s+social|résidant\s+au|domicilié(?:e)?\s+au|adresse\s*:?\s*)\s*"
+            r"\d{1,4}\s+(?:Boulevard|Bld|Rue|Avenue|Av\.?|Place|Allée|Chemin|Route|Immeuble|Quartier|Bloc|Lot)\s+"
+            r"[^\n,]+(?:,\s*[^\n,]+){0,1}",
+            re.IGNORECASE,
+        ),
+    ),
 ]
 
 
