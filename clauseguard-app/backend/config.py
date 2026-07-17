@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     fusion_password: str = ""
     flow_analysis_id: str = ""
     flow_report_id: str = ""
+    flow_report_fallback_id: str = ""
 
     secret_key: str = "dev-secret-change-me"
     access_token_expire_minutes: int = 30
@@ -22,6 +23,7 @@ class Settings(BaseSettings):
 
     storage_dir: str = "storage"
     allowed_origin: str = "http://localhost:5173"
+    mcp_sqlite_path: str = "../../clauseguard-mcp/reports.db"
 
     @property
     def resolved_login_url(self) -> str:

@@ -9,7 +9,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import pytest
 from fastapi.testclient import TestClient
 
-from main import app, fusion_client, settings
+import main
+from main import app, fusion_client, report_store, settings
 
 SAMPLE_FINDINGS = Path(__file__).parent / "sample_finding.json"
 SAMPLE_REPORT = Path(__file__).parent / "sample_report.json"
@@ -36,7 +37,7 @@ def mock_fusion(monkeypatch):
 
     original = fusion_client.run_flow
 
-    def mock_run(flow_id, message, session_id=None):
+    def mock_run(flow_id, message, session_id=None, retry_on_5xx=True):
         if isinstance(message, str) and message.strip().startswith("{"):
             payload = json.loads(message)
             cid = payload.get("contract_id", "test-contract")
@@ -45,6 +46,15 @@ def mock_fusion(monkeypatch):
         return {"response_text": findings_text, "status_code": 200, "duration_ms": 100}
 
     fusion_client.run_flow = mock_run
+
+    # Report generation waits 60s before its first DB poll; zero that out so
+    # tests run fast, and stub the DB lookup so tests don't depend on a real
+    # MCP SQLite file on disk.
+    monkeypatch.setattr(main, "REPORT_POLL_INITIAL_DELAY_S", 0)
+    monkeypatch.setattr(main, "REPORT_POLL_INTERVAL_S", 0)
+    monkeypatch.setattr(main, "REPORT_POLL_BUDGET_S", 0)
+    monkeypatch.setattr(report_store, "find_report", lambda contract_id, since_iso: None)
+
     yield
     fusion_client.run_flow = original
 
@@ -90,14 +100,18 @@ def test_full_happy_path(client, token):
     assert decisions.status_code == 200
 
     report = client.post(f"/api/contracts/{cid}/report", headers={"Authorization": f"Bearer {token}"})
-    assert report.status_code == 200
-    assert report.json()["contract_id"] == cid
+    assert report.status_code == 202
+    assert report.json()["status"] == "report_processing"
+
+    final = _wait_for_status(client, token, cid, {"completed"})
+    assert final["status"] == "completed"
+    assert final["final_report"]["contract_id"] == cid
 
 
 def test_analyze_returns_202_then_transitions(client, token, monkeypatch):
     findings_text = SAMPLE_FINDINGS.read_text(encoding="utf-8")
 
-    def slow_run(flow_id, message, session_id=None):
+    def slow_run(flow_id, message, session_id=None, retry_on_5xx=True):
         time.sleep(2)
         return {"response_text": findings_text, "status_code": 200, "duration_ms": 2000}
 
@@ -122,7 +136,7 @@ def test_analyze_returns_202_then_transitions(client, token, monkeypatch):
 def test_double_analyze_returns_409(client, token, monkeypatch):
     findings_text = SAMPLE_FINDINGS.read_text(encoding="utf-8")
 
-    def slow_run(flow_id, message, session_id=None):
+    def slow_run(flow_id, message, session_id=None, retry_on_5xx=True):
         time.sleep(5)
         return {"response_text": findings_text, "status_code": 200, "duration_ms": 5000}
 
@@ -141,7 +155,7 @@ def test_double_analyze_returns_409(client, token, monkeypatch):
 
 
 def test_flow_exception_becomes_flow_error_not_stuck(client, token, monkeypatch):
-    def failing_run(flow_id, message, session_id=None):
+    def failing_run(flow_id, message, session_id=None, retry_on_5xx=True):
         raise RuntimeError("Fusion failure")
 
     monkeypatch.setattr(fusion_client, "run_flow", failing_run)
@@ -173,3 +187,31 @@ def test_oversized_file_rejected(client, token):
     big = b"Contrat. Article 1. " * 110000
     resp = _upload(client, token, "big.txt", big)
     assert resp.status_code == 413
+
+
+
+def test_list_contracts_returns_summary(client, token):
+    upload = _upload(client, token, "list-test.txt", b"Contrat. Article 1. Partie A. Partie B.")
+    assert upload.status_code == 200
+    cid = upload.json()["contract_id"]
+
+    resp = client.get("/api/contracts", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list)
+    assert any(c["contract_id"] == cid for c in data)
+    found = next(c for c in data if c["contract_id"] == cid)
+    assert "filename" in found
+    assert "status" in found
+    assert "updated_at" in found
+
+
+def test_get_activity_returns_audit_lines(client, token):
+    upload = _upload(client, token, "activity-test.txt", b"Contrat. Article 1. Partie A. Partie B.")
+    assert upload.status_code == 200
+
+    resp = client.get("/api/activity?limit=5", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list)
+    assert len(data) <= 5

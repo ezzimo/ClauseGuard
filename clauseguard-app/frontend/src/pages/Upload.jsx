@@ -1,6 +1,22 @@
 import { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { UploadCloud, FileCheck, Shield, Loader2, X, CheckCircle2 } from "lucide-react";
 import { uploadContract, analyzeContract, getContract } from "../api";
+
+const STEPS = [
+  { id: "extraction", label: "Extraction" },
+  { id: "masking", label: "Masquage PII" },
+  { id: "analysis", label: "Analyse IA" },
+  { id: "review", label: "Revue humaine" },
+  { id: "report", label: "Rapport" },
+];
+
+const PROGRESS_STEP_MAP = {
+  upload: 0,
+  calling_flow: 2,
+  parsing: 2,
+  done: 2,
+};
 
 export default function Upload() {
   const navigate = useNavigate();
@@ -14,7 +30,6 @@ export default function Upload() {
   const [partyInput, setPartyInput] = useState("");
   const [uploadResult, setUploadResult] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [step, setStep] = useState("");
   const [error, setError] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [progressHint, setProgressHint] = useState("");
@@ -53,14 +68,16 @@ export default function Upload() {
 
   const piiStats = uploadResult?.pii_mapping
     ? {
-        emails: Object.values(uploadResult.pii_mapping).filter((v) =>
-          v.includes("@")
-        ).length,
-        telephones: Object.keys(uploadResult.pii_mapping).filter((k) =>
-          k.startsWith("[PHONE_")
-        ).length,
-        identifiants: Object.keys(uploadResult.pii_mapping).filter((k) =>
-          k.startsWith("[SIRET_") || k.startsWith("[SIREN_")
+        emails: Object.values(uploadResult.pii_mapping).filter((v) => v.includes("@")).length,
+        telephones: Object.keys(uploadResult.pii_mapping).filter((k) => k.startsWith("[PHONE_")).length,
+        identifiants: Object.keys(uploadResult.pii_mapping).filter(
+          (k) =>
+            k.startsWith("[RIB_") ||
+            k.startsWith("[IBAN_") ||
+            k.startsWith("[ICE_") ||
+            k.startsWith("[CIN_") ||
+            k.startsWith("[CNSS_") ||
+            k.startsWith("[IF_]")
         ).length,
       }
     : null;
@@ -79,9 +96,7 @@ export default function Upload() {
   const startPolling = (contractId) => {
     setElapsed(0);
     setProgressHint("calling_flow");
-    timerRef.current = setInterval(() => {
-      setElapsed((prev) => prev + 1);
-    }, 1000);
+    timerRef.current = setInterval(() => setElapsed((prev) => prev + 1), 1000);
 
     const check = async () => {
       try {
@@ -93,18 +108,10 @@ export default function Upload() {
           navigate(`/review/${contractId}`);
           return;
         }
-        if (
-          data.status === "parse_error" ||
-          data.status === "flow_error" ||
-          data.status === "error"
-        ) {
+        if (["parse_error", "flow_error", "error"].includes(data.status)) {
           stopPolling();
           setAnalyzing(false);
-          setError(
-            data.error_message ||
-              "L'analyse a échoué. Veuillez réessayer."
-          );
-          return;
+          setError(data.error_message || "L'analyse a échoué. Veuillez réessayer.");
         }
       } catch (err) {
         stopPolling();
@@ -120,9 +127,7 @@ export default function Upload() {
       if (pollingRef.current) {
         stopPolling();
         setAnalyzing(false);
-        setError(
-          "L'analyse a dépassé le délai maximal (12 minutes). Veuillez réessayer."
-        );
+        setError("L'analyse a dépassé le délai maximal (12 minutes). Veuillez réessayer.");
       }
     }, 12 * 60 * 1000);
   };
@@ -136,7 +141,6 @@ export default function Upload() {
     setError("");
     stopPolling();
     try {
-      setStep("upload");
       const uploaded = await uploadContract(file, {
         contract_type: typeContrat,
         cote,
@@ -144,7 +148,6 @@ export default function Upload() {
         parties,
       });
       setUploadResult(uploaded);
-      setStep("analyze");
       setAnalyzing(true);
       await analyzeContract(uploaded.contract_id);
       startPolling(uploaded.contract_id);
@@ -162,57 +165,73 @@ export default function Upload() {
     return `${m}:${s}`;
   };
 
-  const progressLabels = {
-    calling_flow: "Appel du moteur d'analyse...",
-    parsing: "Analyse et structuration des résultats...",
-    done: "Finalisation...",
-  };
+  const activeStep = Math.max(
+    uploadResult ? 1 : 0,
+    PROGRESS_STEP_MAP[progressHint] ?? (analyzing ? 2 : 0)
+  );
 
   return (
-    <div className="upload-page">
-      <h1>Charger un contrat</h1>
-      <p className="subtitle">
-        Déposez votre contrat pour une analyse assistée. Seul le texte masqué est envoyé à la
-        plateforme d'analyse.
-      </p>
+    <div>
+      <div className="page-header">
+        <h1>Téléverser un contrat</h1>
+        <p>Déposez votre contrat pour une analyse assistée. Seul le texte masqué est envoyé à l'IA.</p>
+      </div>
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      <form onSubmit={handleSubmit} className="upload-form">
-        <div
-          className={`dropzone ${dragActive ? "active" : ""} ${file ? "has-file" : ""}`}
-          onDragEnter={handleDrag}
-          onDragOver={handleDrag}
-          onDragLeave={handleDrag}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.docx,.txt"
-            onChange={handleFileChange}
-            hidden
-          />
-          {file ? (
-            <div className="file-info">
-              <strong>{file.name}</strong>
-              <span>{(file.size / 1024).toFixed(1)} Ko</span>
-            </div>
-          ) : (
-            <div className="dropzone-placeholder">
-              <strong>Glissez-déposez un fichier</strong>
-              <span>ou cliquez pour parcourir</span>
-              <small>PDF, DOCX, TXT</small>
-            </div>
-          )}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+          gap: "var(--space-6)",
+          alignItems: "start",
+        }}
+      >
+        <div className="card">
+          <div
+            className={`dropzone ${dragActive ? "active" : ""} ${file ? "has-file" : ""}`}
+            onDragEnter={handleDrag}
+            onDragOver={handleDrag}
+            onDragLeave={handleDrag}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            style={{ marginBottom: 0 }}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.docx,.txt"
+              onChange={handleFileChange}
+              hidden
+            />
+            {file ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", justifyContent: "center" }}>
+                <FileCheck size={32} color="var(--color-success)" />
+                <div style={{ textAlign: "left" }}>
+                  <strong>{file.name}</strong>
+                  <div style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+                    {(file.size / 1024).toFixed(1)} Ko
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ color: "var(--color-text-muted)" }}>
+                <UploadCloud size={40} style={{ marginBottom: "var(--space-2)", color: "var(--color-secondary)" }} />
+                <strong style={{ display: "block", color: "var(--color-primary)", fontSize: "1.1rem" }}>
+                  Glissez-déposez un fichier
+                </strong>
+                <span>ou cliquez pour parcourir</span>
+                <small style={{ display: "block", marginTop: "var(--space-1)" }}>PDF, DOCX, TXT</small>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="context-form">
-          <h2>Contexte du contrat</h2>
-          <div className="form-row">
-            <label>
-              Type de contrat
+        <form onSubmit={handleSubmit} className="card" style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+          <h2 className="card-title">Contexte du contrat</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "var(--space-4)" }}>
+            <div className="form-group">
+              <label>Type de contrat</label>
               <select value={typeContrat} onChange={(e) => setTypeContrat(e.target.value)}>
                 <option value="prestation_services">Prestation de services</option>
                 <option value="contrat_vente">Contrat de vente</option>
@@ -220,35 +239,33 @@ export default function Upload() {
                 <option value="nda">Confidentialité (NDA)</option>
                 <option value="autre">Autre</option>
               </select>
-            </label>
-            <label>
-              Côté représenté
+            </div>
+            <div className="form-group">
+              <label>Côté représenté</label>
               <select value={cote} onChange={(e) => setCote(e.target.value)}>
                 <option value="client">Client</option>
                 <option value="fournisseur">Fournisseur</option>
                 <option value="prestataire">Prestataire</option>
               </select>
-            </label>
+            </div>
           </div>
-          <div className="form-row">
-            <label>
-              Montant (optionnel)
-              <input
-                type="text"
-                value={montant}
-                onChange={(e) => setMontant(e.target.value)}
-                placeholder="Ex. 50 000 EUR"
-              />
-            </label>
+          <div className="form-group">
+            <label>Montant (optionnel)</label>
+            <input
+              type="text"
+              value={montant}
+              onChange={(e) => setMontant(e.target.value)}
+              placeholder="Ex. 50 000 EUR"
+            />
           </div>
-          <label>
-            Noms des parties
+          <div className="form-group">
+            <label>Noms des parties</label>
             <div className="chips-input">
               {parties.map((p) => (
                 <span key={p} className="chip">
                   {p}
-                  <button type="button" onClick={() => removeParty(p)}>
-                    x
+                  <button type="button" onClick={() => removeParty(p)} aria-label="Supprimer">
+                    <X size={14} />
                   </button>
                 </span>
               ))}
@@ -265,43 +282,63 @@ export default function Upload() {
                 placeholder="Ajouter une partie..."
               />
             </div>
-          </label>
-        </div>
-
-        <button type="submit" className="btn-primary" disabled={!file || analyzing}>
-          {analyzing ? "Traitement en cours..." : "Lancer l'analyse"}
-        </button>
-      </form>
+          </div>
+          <button type="submit" className="btn-primary" disabled={!file || analyzing}>
+            {analyzing ? <Loader2 size={18} className="spin" /> : <UploadCloud size={18} />}
+            {analyzing ? "Traitement en cours…" : "Lancer l'analyse"}
+          </button>
+        </form>
+      </div>
 
       {piiStats && (
-        <div className="pii-banner">
-          <strong>Protection des données</strong>
-          <span>
-            {piiStats.emails} emails, {piiStats.telephones} téléphones, {piiStats.identifiants}{" "}
-            identifiants masqués avant envoi.
-          </span>
+        <div className="alert alert-info" style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginTop: "var(--space-6)" }}>
+          <Shield size={20} color="var(--color-secondary)" />
+          <div>
+            <strong>Protection des données</strong>
+            <div style={{ fontSize: "0.9rem" }}>
+              {piiStats.emails} emails, {piiStats.telephones} téléphones, {piiStats.identifiants} identifiants masqués
+              avant envoi.
+            </div>
+          </div>
         </div>
       )}
 
       {analyzing && (
-        <div className="loading-steps">
-          <h3>Analyse en cours</h3>
-          <p className="timer">{formatElapsed(elapsed)}</p>
-          <p className="progress-label">
-            {progressLabels[progressHint] || progressLabels.calling_flow}
+        <div className="card" style={{ marginTop: "var(--space-6)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-4)" }}>
+            <h2 className="card-title" style={{ marginBottom: 0 }}>Analyse en cours</h2>
+            <span className="mono" style={{ color: "var(--color-text-muted)" }}>{formatElapsed(elapsed)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--space-2)" }}>
+            {STEPS.map((step, idx) => {
+              const isActive = idx === activeStep;
+              const isDone = idx < activeStep;
+              return (
+                <div
+                  key={step.id}
+                  style={{
+                    flex: 1,
+                    textAlign: "center",
+                    padding: "var(--space-3) var(--space-2)",
+                    borderRadius: "var(--radius)",
+                    backgroundColor: isActive || isDone ? "var(--color-bg)" : "transparent",
+                    border: `1px solid ${isActive ? "var(--color-secondary)" : isDone ? "var(--color-success)" : "var(--color-border)"}`,
+                    color: isActive ? "var(--color-secondary)" : isDone ? "var(--color-success)" : "var(--color-text-muted)",
+                    fontSize: "0.8rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  <div style={{ marginBottom: "var(--space-1)" }}>
+                    {isDone ? <CheckCircle2 size={18} /> : isActive ? <Loader2 size={18} className="spin" /> : <div style={{ width: 18, height: 18, margin: "0 auto", borderRadius: "50%", border: "2px solid var(--color-border)" }} />}
+                  </div>
+                  {step.label}
+                </div>
+              );
+            })}
+          </div>
+          <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", marginTop: "var(--space-4)", marginBottom: 0 }}>
+            Cette opération peut prendre 3 à 6 minutes. Ne fermez pas la page.
           </p>
-          <p className="progress-subtitle">
-            Cette opération peut prendre 3 à 6 minutes.
-          </p>
-          <ul>
-            <li className={step === "upload" || uploadResult ? "done" : ""}>
-              Envoi du contrat
-            </li>
-            <li className={step === "analyze" ? "active" : uploadResult ? "done" : ""}>
-              Analyse par l'IA
-            </li>
-            <li className={uploadResult ? "active" : ""}>Préparation de la revue</li>
-          </ul>
         </div>
       )}
     </div>

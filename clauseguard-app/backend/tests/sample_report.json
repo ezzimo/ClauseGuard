@@ -1,30 +1,80 @@
 {
   "contract_id": "test-contract",
-  "analysis_date": "2026-07-14",
-  "overall_risk": "moyen",
-  "executive_summary": "Le contrat présente un risque modéré avec quelques clauses à surveiller.",
+  "request_id": "74de152ca17e46ad95d073c7ca877a64",
+  "analysis_date": "2026-07-17",
+  "overall_risk": "ROUGE",
+  "executive_summary": "Le contrat contient 5 clauses dont 3 présentent un risque. Une clause a été identifiée comme présentant un risque élevé (ROUGE) et a été soumise pour examen par un avocat. Deux autres clauses présentent un risque modéré (ORANGE) mais ont été approuvées par l'utilisateur. Deux clauses sont standard et ne présentent pas de risque.",
   "clauses": [
     {
-      "clause_id": "ART_1",
-      "reference": "Article 1",
-      "original_risk_level": "moyen",
-      "corrected_risk_level": "moyen",
-      "human_decision": "approve",
-      "comment": "Validé"
-    }
-  ],
-  "audit_log": [
+      "clause_id": "C-001",
+      "reference": "Article 1 / paragraphe 1",
+      "type": "standard",
+      "risk_level": "VERT",
+      "finding": "Clause standard sans risque identifié.",
+      "sources": [],
+      "proposed_rewrite": null,
+      "audit_status": "validated",
+      "human_decision": "approved"
+    },
     {
-      "actor": "system",
-      "event": "analysis"
+      "clause_id": "C-002",
+      "reference": "Article 2 / paragraphe 1",
+      "type": "payment_terms",
+      "risk_level": "ORANGE",
+      "finding": "Risque identifié avec citation présente.",
+      "sources": [
+        "SOURCE_ID: RSK-PAIE-002"
+      ],
+      "proposed_rewrite": "Le montant des prestations est fixé à 50 000 MAD HT, avec un paiement de 30 % à la signature et 70 % à la livraison, ou selon un calendrier de paiement convenu entre les parties.",
+      "audit_status": "validated",
+      "human_decision": "approved"
+    },
+    {
+      "clause_id": "C-003",
+      "reference": "Article 3 / paragraphe 1",
+      "type": "confidentiality",
+      "risk_level": "ORANGE",
+      "finding": "Risque identifié avec citation présente.",
+      "sources": [
+        "SOURCE_ID: STD-CONF-001"
+      ],
+      "proposed_rewrite": "Chaque partie s'engage à conserver confidentielles toutes les informations échangées pendant l'exécution du présent contrat et pendant trois années après sa fin.",
+      "audit_status": "validated",
+      "human_decision": "approved"
+    },
+    {
+      "clause_id": "C-004",
+      "reference": "Article 4 / paragraphe 1",
+      "type": "unilateral_modification",
+      "risk_level": "ORANGE",
+      "finding": "Formulation trop définitive, reformulée pour plus de prudence.",
+      "sources": [
+        "SOURCE_ID: RSK-PAIE-002"
+      ],
+      "proposed_rewrite": "Le Prestataire pourra proposer des modifications des tarifs et des conditions du présent contrat, sous réserve de l'accord préalable écrit du Client.",
+      "audit_status": "downgraded",
+      "human_decision": "request_lawyer_review"
+    },
+    {
+      "clause_id": "C-005",
+      "reference": "Article 6 / paragraphe 1",
+      "type": "standard",
+      "risk_level": "VERT",
+      "finding": "Clause standard sans risque identifié.",
+      "sources": [],
+      "proposed_rewrite": null,
+      "audit_status": "validated",
+      "human_decision": "pending_human_validation"
     }
   ],
+  "audit_log": [],
   "dashboard_metrics": {
-    "total_clauses": 1,
-    "high_risk_count": 0,
-    "medium_risk_count": 1,
-    "low_risk_count": 0,
-    "pending_decisions": 0
+    "total_clauses_processed": 5,
+    "orange_red_detection_count": 3,
+    "citation_rate": 0.6,
+    "audit_downgrade_rate": 0.2,
+    "hitl_override_rate": 0.6,
+    "human_validation_pending_count": 1
   },
-  "disclaimer": "Cette analyse ne constitue pas un avis juridique."
+  "disclaimer": "ClauseGuard est un assistant de pre-lecture contractuelle. Il ne fournit pas de conseil juridique et ne remplace pas un avocat."
 }

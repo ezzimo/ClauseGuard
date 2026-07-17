@@ -27,7 +27,6 @@ async function fetchWithAuth(url, options = {}) {
   });
 
   if (res.status === 401) {
-    // Token may have expired; re-login once and retry.
     await login();
     const freshHeaders = await authHeaders();
     return fetch(url, {
@@ -37,6 +36,12 @@ async function fetchWithAuth(url, options = {}) {
   }
 
   return res;
+}
+
+async function listContracts() {
+  const res = await fetchWithAuth(`${API_URL}/api/contracts`);
+  if (!res.ok) throw new Error("Échec du chargement des contrats");
+  return res.json();
 }
 
 async function uploadContract(file, context) {
@@ -92,13 +97,49 @@ async function getReport(contractId) {
   return res.json();
 }
 
+async function recoverReport(contractId) {
+  const res = await fetchWithAuth(`${API_URL}/api/contracts/${contractId}/report?recover=true`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || "Échec de la récupération du rapport");
+  }
+  return res.json();
+}
+
+async function downloadReportPdf(contractId) {
+  const res = await fetchWithAuth(`${API_URL}/api/contracts/${contractId}/report/pdf`);
+  if (!res.ok) throw new Error("Échec du téléchargement du PDF");
+  const blob = await res.blob();
+  const disposition = res.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  const filename = match ? match[1] : `ClauseGuard_Rapport_${contractId.slice(0, 8)}.pdf`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function getActivity(limit = 15) {
+  const res = await fetchWithAuth(`${API_URL}/api/activity?limit=${limit}`);
+  if (!res.ok) throw new Error("Échec du chargement de l'activité");
+  return res.json();
+}
+
 export {
   API_URL,
   login,
+  listContracts,
   uploadContract,
   analyzeContract,
   getContract,
   submitDecisions,
   generateReport,
   getReport,
+  recoverReport,
+  downloadReportPdf,
+  getActivity,
 };

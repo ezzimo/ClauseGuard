@@ -7,13 +7,13 @@
       "clause_text": "Le Prestataire est seul responsable de ses employés.",
       "type": "responsabilité",
       "original_risk_level": "moyen",
-      "audit_decision": "accept",
-      "audit_reason": "Clause équilibrée",
-      "corrected_risk_level": "moyen",
+      "audit_decision": "requires_human_check",
+      "audit_reason": "Clause de responsabilité à valider",
+      "corrected_risk_level": "UNKNOWN",
       "risk_summary": "Pas de déséquilibhe majeur",
       "source_excerpts": ["Le Prestataire est seul responsable"],
       "proposed_rewrite": null,
-      "human_review_required": false
+      "human_review_required": true
     }
   ],
   "global_audit_notes": ["Analyse terminée"],

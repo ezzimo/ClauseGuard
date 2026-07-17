@@ -1,8 +1,8 @@
 from datetime import date, datetime
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ContractStatus(str, Enum):
@@ -12,9 +12,11 @@ class ContractStatus(str, Enum):
     AWAITING_HUMAN_REVIEW = "awaiting_human_review"
     PENDING_HUMAN_VALIDATION = "pending_human_validation"
     DECISIONS_RECORDED = "decisions_recorded"
+    REPORT_PROCESSING = "report_processing"
     COMPLETED = "completed"
     PARSE_ERROR = "parse_error"
     FLOW_ERROR = "flow_error"
+    REPORT_ERROR = "report_error"
     ERROR = "error"
 
 
@@ -78,29 +80,37 @@ class DecisionsResponse(BaseModel):
 class ReportClause(BaseModel):
     clause_id: str
     reference: str
-    original_risk_level: str
-    corrected_risk_level: str
-    human_decision: Optional[str] = None
-    comment: Optional[str] = None
+    type: str
+    risk_level: Literal["VERT", "ORANGE", "ROUGE", "UNKNOWN"]
+    finding: str
+    sources: list[str] = []
+    proposed_rewrite: Optional[str] = None
+    audit_status: str
+    human_decision: str
 
 
 class DashboardMetrics(BaseModel):
-    total_clauses: int
-    high_risk_count: int
-    medium_risk_count: int
-    low_risk_count: int
-    pending_decisions: int
+    total_clauses_processed: int
+    orange_red_detection_count: int
+    citation_rate: Optional[float] = None
+    audit_downgrade_rate: Optional[float] = None
+    hitl_override_rate: Optional[float] = None
+    human_validation_pending_count: int = 0
 
 
 class FinalReport(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     contract_id: str
+    request_id: str = ""
     analysis_date: str
     overall_risk: str
     executive_summary: str
     clauses: list[ReportClause]
-    audit_log: list[dict]
+    audit_log: list = []
     dashboard_metrics: DashboardMetrics
     disclaimer: str
+    delivery: str = "full"
 
 
 class ContractContext(BaseModel):
@@ -128,6 +138,7 @@ class ContractState(BaseModel):
     raw_analysis_response: Optional[str] = None
     human_decisions: list[Decision] = []
     final_report: Optional[FinalReport] = None
+    report_request_id: Optional[str] = None
 
 
 class AnalysisResponse(BaseModel):
@@ -163,3 +174,5 @@ class AuditLogEntry(BaseModel):
     latency_ms: int
     status: str
     actor: str = "system"
+    action: Optional[str] = None
+    detail: Optional[str] = None

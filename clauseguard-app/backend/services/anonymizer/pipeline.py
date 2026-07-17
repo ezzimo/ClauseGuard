@@ -1,9 +1,9 @@
 """PII anonymization pipeline.
 
 Steps:
-1. Ordered regex rule masking (email, phone, IDs, etc.).
-2. Party names (full + surname) masking.
-3. Optional NER person detection.
+1. Party names (full + last-token surname) masking FIRST.
+2. Optional GLiNER NER person detection.
+3. Ordered regex rule masking (IBAN, RIB, ICE, CIN, CNSS, IF, phone, email).
 4. Final verification pass + optional leak error.
 """
 
@@ -62,11 +62,11 @@ def _mask_people(text: str, store: PlaceholderStore, stats: dict) -> str:
 
 
 def _mask_party_names(text: str, party_names: list[str], store: PlaceholderStore) -> str:
-    """Mask full party names and standalone surnames.
+    """Mask full party names and standalone last-token surnames.
 
-    Surname = all tokens after the first name token.  This covers
-    single-token surnames like "Benjelloun" and multi-token surnames
-    like "El Fassi".
+    Surname = last token of the name, when it is at least 4 characters long.
+    This covers surnames like "Benjelloun" and "Fassi" while leaving short
+    particles (El, Ben, etc.) untouched.
 
     Surnames get their own placeholder mapping back to the exact surname text
     so that round-trip unmasking preserves the original document verbatim.
@@ -84,8 +84,8 @@ def _mask_party_names(text: str, party_names: list[str], store: PlaceholderStore
 
         tokens = name.split()
         if len(tokens) > 1:
-            surname = " ".join(tokens[1:]).strip()
-            if len(surname) >= 2:
+            surname = tokens[-1].strip()
+            if len(surname) >= 4:
                 surname_label = f"[PARTIE_{_letter_index(idx)}_NOM]"
                 store.set_label("partie_nom", surname, surname_label)
                 surname_entries.append((surname.lower(), surname_label, surname))
@@ -212,7 +212,7 @@ def _find_any_match(text: str, party_names: list[str]) -> Optional[str]:
             # Also check surname alone.
             tokens = name.strip().split()
             if len(tokens) > 1:
-                surname = " ".join(tokens[1:])
+                surname = tokens[-1]
                 if len(surname) >= 4:
                     pattern = rf"\b{re.escape(surname)}\b"
                     match = re.search(pattern, text, re.IGNORECASE)
@@ -230,10 +230,10 @@ def mask_pii(text: str, party_names: Optional[list[str]] = None) -> tuple[str, d
     stats: dict = {"second_pass_fixes": 0}
 
     masked = text
-    masked = _mask_with_rules(masked, store, stats)
     if party_names:
         masked = _mask_party_names(masked, party_names, store)
     masked = _mask_people(masked, store, stats)
+    masked = _mask_with_rules(masked, store, stats)
     masked = _final_verification(masked, party_names or [], store, stats)
 
     return masked, store.mapping, stats

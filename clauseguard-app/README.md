@@ -38,11 +38,32 @@ FUSION_USERNAME=votre_username
 FUSION_PASSWORD=votre_mot_de_passe
 FLOW_ANALYSIS_ID=a07252c9-b063-4b31-9bdf-373725ac7657
 FLOW_REPORT_ID=1db72ffe-68c6-4dd2-8f68-1e15f4449b89
+FLOW_REPORT_FALLBACK_ID=
 SECRET_KEY=change-me-in-production
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_MINUTES=10080
 ALLOWED_ORIGIN=http://localhost:5173
+# ANONYMIZER_NER=off
 ```
+
+### Couche NER avancée (optionnelle)
+
+L'anonymisation repose par défaut sur des regex et les noms de parties fournis.
+Vous pouvez activer une couche GLiNER optionnelle pour détecter automatiquement
+les personnes non listées :
+
+```env
+ANONYMIZER_NER=on
+```
+
+- Premier téléchargement du modèle `urchade/gliner_medium-v2.1` : ~500 Mo.
+- Etiquette utilisée : `person` uniquement (pas d'organisation, pas d'adresse).
+- Seuil de confiance : 0.5.
+- Si le modèle ne se charge pas (OOM, erreur réseau, etc.), le pipeline
+  continue sans NER : aucun échec d'upload n'est causé par la couche NER.
+
+Pour la démo, laissez `ANONYMIZER_NER=off` (comportement par défaut) ; la NER
+est la "couche avancée" à montrer uniquement s'il reste du temps.
 
 ## Backend
 

@@ -26,8 +26,11 @@ CONTRACT_KEYWORDS = [
 
 
 async def extract_text(file: UploadFile) -> Tuple[str, int]:
-    content_type = (file.content_type or "").lower()
+    # Routing is by filename extension only. Browsers send unreliable MIME
+    # types for .txt/.csv (often both "text/plain"), so content_type must
+    # never decide which extractor runs.
     filename = (file.filename or "").lower()
+    extension = Path(filename).suffix
 
     try:
         raw = await file.read()
@@ -49,23 +52,16 @@ async def extract_text(file: UploadFile) -> Tuple[str, int]:
             detail="Empty file",
         )
 
-    if content_type == "text/plain" or filename.endswith(".txt"):
-        text = _decode_text(raw)
-    elif content_type == "application/pdf" or filename.endswith(".pdf"):
+    if extension == ".pdf":
         text = _extract_pdf(raw)
-    elif (
-        content_type
-        in {
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/msword",
-        }
-        or filename.endswith(".docx")
-    ):
+    elif extension == ".docx":
         text = _extract_docx(raw)
+    elif extension == ".txt":
+        text = _decode_text(raw)
     else:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="Unsupported file type. Use PDF, DOCX, or TXT.",
+            detail="format non supporte (PDF, DOCX, TXT)",
         )
 
     text = text.strip()
@@ -85,12 +81,18 @@ async def extract_text(file: UploadFile) -> Tuple[str, int]:
 
 
 def _decode_text(raw: bytes) -> str:
-    for encoding in ("utf-8", "utf-16", "latin-1", "cp1252"):
+    # Order matters: latin-1 never raises (it maps every byte 0-255), so it
+    # must be the last resort or cp1252-encoded text (curly quotes, em-dash,
+    # oe-ligature, etc. in the 0x80-0x9F range) would silently decode wrong.
+    for encoding in ("utf-8", "cp1252", "latin-1"):
         try:
-            return raw.decode(encoding)
+            text = raw.decode(encoding)
+            break
         except UnicodeDecodeError:
             continue
-    return raw.decode("utf-8", errors="replace")
+    else:
+        text = raw.decode("utf-8", errors="replace")
+    return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 def _extract_pdf(raw: bytes) -> str:

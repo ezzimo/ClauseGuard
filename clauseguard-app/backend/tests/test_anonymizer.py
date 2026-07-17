@@ -130,3 +130,81 @@ def test_10_mapping_round_trip_restores_original():
     masked, mapping, stats = mask_pii(text, party_names)
     restored = unmask_text(masked, mapping)
     assert restored == text
+
+
+
+def test_11_contrat_test_e2e_leaks_killed_and_rc_survives():
+    """Acceptance test for PROMPT A: party names and RIB masked; RC/amount survive."""
+    text = (Path(__file__).parent / "contrat_test_e2e.txt").read_text(encoding="utf-8")
+    party_names = ["Rachid Benjelloun", "Salma El Fassi"]
+    masked, mapping, stats = mask_pii(text, party_names)
+
+    forbidden = ["Benjelloun", "El Fassi", "0000123456789012"]
+    for token in forbidden:
+        assert token not in masked, f"leak: {token!r} still present"
+
+    preserved = ["445621", "98745", "840 000 MAD"]
+    for token in preserved:
+        assert token in masked, f"wrongly masked: {token!r} removed"
+
+    assert "[RIB_1]" in masked
+    assert mapping["[PARTIE_A]"] == "Rachid Benjelloun"
+    assert mapping["[PARTIE_B]"] == "Salma El Fassi"
+
+
+
+def test_12_ner_off_behavior_unchanged(monkeypatch):
+    """With ANONYMIZER_NER=off (default), NER does nothing and text is unchanged."""
+    from services.anonymizer import ner_detector
+
+    monkeypatch.setattr(ner_detector, "_NER_ENABLED", False)
+
+    text = "Monsieur Rachid Benjelloun signe le contrat."
+    masked, mapping, stats = mask_pii(text, party_names=[])
+    assert "Rachid Benjelloun" in masked
+    assert stats.get("ner_persons", 0) == 0
+
+
+def test_13_ner_on_catches_uncaught_person(monkeypatch):
+    """With ANONYMIZER_NER=on, a person not in party_names is masked as [PERSON_n]."""
+    from services.anonymizer import ner_detector
+
+    monkeypatch.setattr(ner_detector, "_NER_ENABLED", True)
+
+    class FakeModel:
+        def predict_entities(self, text, labels, threshold):
+            return [
+                {
+                    "label": "person",
+                    "score": 0.9,
+                    "start": 10,
+                    "end": 27,
+                    "text": "Rachid Benjelloun",
+                }
+            ]
+
+    monkeypatch.setattr(ner_detector, "_model", FakeModel())
+
+    text = "Monsieur Rachid Benjelloun signe."
+    masked, mapping, stats = mask_pii(text, party_names=[])
+    assert "Rachid Benjelloun" not in masked
+    assert "[PERSON_1]" in masked
+    assert mapping["[PERSON_1]"] == "Rachid Benjelloun"
+    assert stats["ner_persons"] == 1
+
+
+def test_14_ner_exception_never_fails_pipeline(monkeypatch):
+    """If NER raises, the pipeline continues with the original text."""
+    from services.anonymizer import ner_detector
+
+    monkeypatch.setattr(ner_detector, "_NER_ENABLED", True)
+
+    class BadModel:
+        def predict_entities(self, text, labels, threshold):
+            raise RuntimeError("OOM")
+
+    monkeypatch.setattr(ner_detector, "_model", BadModel())
+
+    text = "Rachid Benjelloun signe."
+    masked, mapping, stats = mask_pii(text, party_names=[])
+    assert masked == text

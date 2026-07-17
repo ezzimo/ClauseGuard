@@ -15,6 +15,7 @@ from models.schemas import (
     Decision,
     FinalReport,
     Finding,
+    ReportClause,
 )
 
 
@@ -124,40 +125,82 @@ class TestDecision:
             Decision.model_validate({"clause_id": "C1", "action": "approve", "comment": 123})
 
 
+def _report_clause():
+    return {
+        "clause_id": "C-001",
+        "reference": "Article 1",
+        "type": "standard",
+        "risk_level": "VERT",
+        "finding": "Clause standard sans risque identifié.",
+        "sources": [],
+        "proposed_rewrite": None,
+        "audit_status": "validated",
+        "human_decision": "approved",
+    }
+
+
+class TestReportClause:
+    def test_valid_clauses(self):
+        for level in ["VERT", "ORANGE", "ROUGE", "UNKNOWN"]:
+            ReportClause.model_validate({**_report_clause(), "risk_level": level})
+
+    def test_invalid_risk_level_rejected(self):
+        with pytest.raises(ValidationError):
+            ReportClause.model_validate({**_report_clause(), "risk_level": "moyen"})
+
+
 class TestFinalReport:
     def test_valid_reports(self):
-        for overall in ["faible", "moyen", "élevé", "critique", "inconnu"]:
+        for overall in ["VERT", "ORANGE", "ROUGE", "moyen", "inconnu"]:
             FinalReport.model_validate({
                 "contract_id": "id",
+                "request_id": "req-1",
                 "analysis_date": "2026-07-14",
                 "overall_risk": overall,
                 "executive_summary": "résumé",
-                "clauses": [],
+                "clauses": [_report_clause()],
                 "audit_log": [],
                 "dashboard_metrics": {
-                    "total_clauses": 0,
-                    "high_risk_count": 0,
-                    "medium_risk_count": 0,
-                    "low_risk_count": 0,
-                    "pending_decisions": 0,
+                    "total_clauses_processed": 1,
+                    "orange_red_detection_count": 0,
+                    "citation_rate": 0.0,
+                    "audit_downgrade_rate": 0.0,
+                    "hitl_override_rate": 0.0,
+                    "human_validation_pending_count": 0,
                 },
                 "disclaimer": "disc",
             })
+
+    def test_extra_fields_ignored(self):
+        """The flow's response may carry fields we don't model; they must not
+        break validation (model_config extra='ignore')."""
+        report = FinalReport.model_validate({
+            "contract_id": "id",
+            "analysis_date": "2026-07-14",
+            "overall_risk": "ROUGE",
+            "executive_summary": "résumé",
+            "clauses": [],
+            "audit_log": [],
+            "dashboard_metrics": {
+                "total_clauses_processed": 0,
+                "orange_red_detection_count": 0,
+            },
+            "disclaimer": "disc",
+            "some_unmodeled_flow_field": "should be ignored",
+        })
+        assert report.request_id == ""
 
     def test_invalid_reports(self):
         base = {
             "contract_id": "id",
             "analysis_date": "2026-07-14",
-            "overall_risk": "moyen",
+            "overall_risk": "ROUGE",
             "executive_summary": "résumé",
             "clauses": [],
             "audit_log": [],
             "dashboard_metrics": {
-                "total_clauses": 0,
-                "high_risk_count": 0,
-                "medium_risk_count": 0,
-                "low_risk_count": 0,
-                "pending_decisions": 0,
+                "total_clauses_processed": 0,
+                "orange_red_detection_count": 0,
             },
             "disclaimer": "disc",
         }

@@ -22,6 +22,7 @@ class FusionClient:
         flow_id: str,
         message: str,
         session_id: Optional[str] = None,
+        retry_on_5xx: bool = True,
     ) -> dict:
         url = f"{self.base_url}/api/v1/run/{flow_id}"
         body: dict[str, Any] = {
@@ -72,7 +73,7 @@ class FusionClient:
 
             except requests.exceptions.HTTPError as exc:
                 last_error = exc
-                if attempt < 2 and 500 <= last_status < 600:
+                if attempt < 2 and 500 <= last_status < 600 and retry_on_5xx:
                     time.sleep(0.5 * (attempt + 1))
                     continue
                 raise
