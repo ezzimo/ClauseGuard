@@ -33,7 +33,9 @@ from services import report_store
 from services.auth import authenticate_user, create_token_pair, get_current_user, refresh_access_token
 from services.extract import extract_text
 from services.fusion import FusionClient
+from services.parsing import extract_json_object, strip_markdown_fences
 from services.pdf_report import build_pdf
+from services.quality_loop import QualityTrace, run_quality_loop
 from services.anonymizer import AnonymizationLeakError, mask_pii
 from services.anonymizer.party_extractor import extract_party_names
 
@@ -97,31 +99,6 @@ def _load_state(contract_id: str) -> ContractState:
     return ContractState(**data)
 
 
-def _strip_markdown_fences(text: str) -> str:
-    text = text.strip()
-    if text.startswith("```json"):
-        text = text[7:]
-    elif text.startswith("```"):
-        text = text[3:]
-    if text.endswith("```"):
-        text = text[:-3]
-    return text.strip()
-
-
-def _extract_json_object(text: str) -> str:
-    """Slice from the first '{' to the last '}'.
-
-    LLM responses sometimes carry a conversational preamble ("Souhaitez-vous
-    que je...") before/after the actual JSON payload. Raises ValueError (a
-    parse-failure, not a crash) if no JSON object delimiters are found.
-    """
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end == -1 or end < start:
-        raise ValueError("No JSON object found in response")
-    return text[start : end + 1]
-
-
 def _append_audit(entry: AuditLogEntry) -> None:
     with open(AUDIT_LOG_PATH, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(entry.model_dump(mode="json"), ensure_ascii=False) + "\n")
@@ -155,12 +132,12 @@ def _run_analysis(flow_id: str, masked_text: str) -> dict:
 
 
 def _parse_findings(raw_text: str) -> AuditedFindings:
-    cleaned = _extract_json_object(_strip_markdown_fences(raw_text))
+    cleaned = extract_json_object(strip_markdown_fences(raw_text))
     return AuditedFindings.model_validate_json(cleaned)
 
 
 def _parse_report(raw_text: str) -> FinalReport:
-    cleaned = _extract_json_object(_strip_markdown_fences(raw_text))
+    cleaned = extract_json_object(strip_markdown_fences(raw_text))
     return FinalReport.model_validate_json(cleaned)
 
 
@@ -279,12 +256,50 @@ def _run_analysis_background(contract_id: str, flow_id: str, masked_text: str) -
         raw_text = result["response_text"]
         _update(progress_hint="parsing")
         findings = _parse_findings(raw_text)
+
+        quality: dict | None = None
+        if settings.quality_loop_enabled and not (settings.flow_critic_id and settings.flow_refiner_id):
+            logging.warning(
+                "QUALITY_LOOP=on but FLOW_CRITIC_ID/FLOW_REFINER_ID missing; skipping quality loop for %s",
+                contract_id,
+            )
+        elif settings.quality_loop_enabled:
+            _update(progress_hint="quality_loop")
+            request_id = uuid.uuid4().hex
+
+            def _quality_audit(flow_id_: str, status_label: str, action: str, detail: str) -> None:
+                _append_audit(
+                    AuditLogEntry(
+                        timestamp=datetime.now(timezone.utc),
+                        flow_id=flow_id_,
+                        latency_ms=0,
+                        status=status_label,
+                        actor="system",
+                        action=action,
+                        detail=f"{detail}; request_id={request_id}",
+                    )
+                )
+
+            trace = QualityTrace(
+                contract_id=contract_id,
+                request_id=request_id,
+                fusion_client=fusion_client,
+                audit_fn=_quality_audit,
+                critic_flow_id=settings.flow_critic_id,
+                refiner_flow_id=settings.flow_refiner_id,
+                threshold=settings.quality_threshold,
+                max_iterations=settings.quality_max_iterations,
+            )
+            refined_findings, quality = run_quality_loop(findings.audited_findings, trace)
+            findings.audited_findings = refined_findings
+
         _update(
             status=ContractStatus.AWAITING_HUMAN_REVIEW,
             analysis_result=findings,
             raw_analysis_response=raw_text,
             progress_hint="done",
             error_message=None,
+            quality=quality,
         )
     except (json.JSONDecodeError, ValueError) as exc:
         _update(

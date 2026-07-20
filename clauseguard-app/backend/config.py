@@ -25,9 +25,19 @@ class Settings(BaseSettings):
     allowed_origin: str = "http://localhost:5173"
     mcp_sqlite_path: str = "../../clauseguard-mcp/reports.db"
 
+    quality_loop: str = "off"
+    flow_critic_id: str = ""
+    flow_refiner_id: str = ""
+    quality_threshold: float = 0.75
+    quality_max_iterations: int = 2
+
     @property
     def resolved_login_url(self) -> str:
         return (self.fusion_login_url or self.fusion_base_url).rstrip("/")
+
+    @property
+    def quality_loop_enabled(self) -> bool:
+        return self.quality_loop.strip().lower() == "on"
 
 
 settings = Settings()

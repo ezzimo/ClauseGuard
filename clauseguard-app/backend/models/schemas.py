@@ -139,6 +139,7 @@ class ContractState(BaseModel):
     human_decisions: list[Decision] = []
     final_report: Optional[FinalReport] = None
     report_request_id: Optional[str] = None
+    quality: Optional[dict] = None
 
 
 class AnalysisResponse(BaseModel):

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { CheckCircle2, AlertTriangle, Scale, ChevronDown, ChevronUp, Loader2, FileText } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Scale, ChevronDown, ChevronUp, Loader2, FileText, Gauge } from "lucide-react";
 import { getContract, submitDecisions, generateReport, recoverReport } from "../api";
 import RiskBadge, { normalize } from "../components/RiskBadge";
 
@@ -239,8 +239,29 @@ export default function Review() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - var(--topbar-height) - var(--space-8) * 2)" }}>
       <div className="page-header" style={{ flexShrink: 0 }}>
-        <h1>Revue des clauses</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
+          <h1 style={{ marginBottom: 0 }}>Revue des clauses</h1>
+          {contract?.quality?.enabled && contract.quality.score !== null && contract.quality.score !== undefined && (
+            <span
+              className="badge badge-accent"
+              style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-1)" }}
+            >
+              <Gauge size={14} />
+              Qualité {Math.round(contract.quality.score * 100) / 100} · {contract.quality.iterations} itération
+              {contract.quality.iterations > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
         <p>Examinez chaque clause signalée et validez les décisions pour les risques ORANGE et ROUGE.</p>
+        {contract?.quality?.quality_warning && (
+          <div
+            className="alert alert-warning"
+            style={{ marginTop: "var(--space-3)", display: "flex", alignItems: "center", gap: "var(--space-2)" }}
+          >
+            <AlertTriangle size={18} />
+            Score qualité sous le seuil, revue humaine attentive recommandée.
+          </div>
+        )}
       </div>
 
       <div style={{ display: "flex", gap: "var(--space-6)", flex: 1, minHeight: 0, overflow: "hidden" }}>
