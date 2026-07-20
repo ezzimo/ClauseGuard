@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import Upload from "./pages/Upload";
+import Contracts from "./pages/Contracts";
 import Reports from "./pages/Reports";
 import Audit from "./pages/Audit";
 import Review from "./pages/Review";
@@ -14,6 +15,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/upload" element={<Upload />} />
+          <Route path="/contracts" element={<Contracts />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/audit" element={<Audit />} />
           <Route path="/review/:contractId" element={<Review />} />

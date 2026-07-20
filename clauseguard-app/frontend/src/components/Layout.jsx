@@ -5,7 +5,7 @@ import Disclaimer from "./Disclaimer";
 
 const NAV_ITEMS = [
   { path: "/", label: "Tableau de bord", icon: LayoutDashboard },
-  { path: "/upload", label: "Contrats", icon: FileText },
+  { path: "/contracts", label: "Contrats", icon: FileText },
   { path: "/reports", label: "Rapports", icon: FileCheck },
   { path: "/audit", label: "Journal d'audit", icon: ScrollText },
 ];
@@ -28,6 +28,9 @@ export default function Layout({ children }) {
 
   const isActive = (path) => {
     if (path === "/") return location.pathname === "/";
+    if (path === "/contracts") {
+      return location.pathname.startsWith("/contracts") || location.pathname.startsWith("/upload");
+    }
     return location.pathname.startsWith(path);
   };
 
@@ -36,6 +39,9 @@ export default function Layout({ children }) {
     if (location.pathname.startsWith("/review")) return "Revue des clauses";
     if (location.pathname.startsWith("/report")) return "Rapport d'analyse";
     if (location.pathname === "/upload") return "Téléverser un contrat";
+    if (location.pathname.startsWith("/contracts")) return "Contrats";
+    if (location.pathname.startsWith("/reports")) return "Rapports";
+    if (location.pathname.startsWith("/audit")) return "Journal d'audit";
     return "Tableau de bord";
   })();
 

@@ -328,9 +328,14 @@ button {
   transition: background-color 0.15s, border-color 0.15s;
 }
 
-.btn-secondary:hover {
+.btn-secondary:hover:not(:disabled) {
   background-color: var(--color-bg);
   border-color: var(--color-secondary);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-ghost {

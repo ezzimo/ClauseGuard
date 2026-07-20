@@ -1,41 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FileText, Clock, AlertTriangle, CheckCircle, Activity, Upload } from "lucide-react";
+import { FileText, Clock, AlertTriangle, CheckCircle, Activity, Upload, ArrowRight } from "lucide-react";
 import { listContracts, getActivity } from "../api";
 import RiskBadge, { normalize } from "../components/RiskBadge";
-
-function formatDate(iso) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function formatTime(iso) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleTimeString("fr-FR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function statusBadge(status) {
-  const map = {
-    uploaded: { label: "Importé", class: "badge-unknown" },
-    processing: { label: "Analyse…", class: "badge-accent" },
-    awaiting_human_review: { label: "En revue", class: "badge-orange" },
-    pending_human_validation: { label: "Validation", class: "badge-orange" },
-    decisions_recorded: { label: "Décisions", class: "badge-vert" },
-    completed: { label: "Terminé", class: "badge-vert" },
-    parse_error: { label: "Erreur", class: "badge-rouge" },
-    flow_error: { label: "Erreur", class: "badge-rouge" },
-    error: { label: "Erreur", class: "badge-rouge" },
-  };
-  const item = map[status] || { label: status, class: "badge-unknown" };
-  return <span className={`badge ${item.class}`}>{item.label}</span>;
-}
+import { statusMeta, contractRoute, formatDate, formatTime } from "../utils/contracts";
 
 function KpiCard({ icon: Icon, label, value, accent }) {
   return (
@@ -224,34 +192,41 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {recentContracts.map((c) => (
-                <tr key={c.contract_id}>
-                  <td>
-                    <Link
-                      to={c.status === "completed" ? `/report/${c.contract_id}` : `/review/${c.contract_id}`}
-                      className="btn-text"
-                    >
-                      {c.filename}
-                    </Link>
-                    <div className="mono" style={{ color: "var(--color-text-muted)", fontSize: "0.75rem" }}>
-                      {c.contract_id.slice(0, 8)}
-                    </div>
-                  </td>
-                  <td>{statusBadge(c.status)}</td>
-                  <td>
-                    {c.final_report?.overall_risk ? (
-                      <RiskBadge level={c.final_report.overall_risk} />
-                    ) : (
-                      <span className="badge badge-unknown">—</span>
-                    )}
-                  </td>
-                  <td style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-                    {formatDate(c.updated_at)}
-                  </td>
-                </tr>
-              ))}
+              {recentContracts.map((c) => {
+                const meta = statusMeta(c.status);
+                return (
+                  <tr key={c.contract_id}>
+                    <td>
+                      <Link to={contractRoute(c)} className="btn-text">
+                        {c.filename}
+                      </Link>
+                      <div className="mono" style={{ color: "var(--color-text-muted)", fontSize: "0.75rem" }}>
+                        {c.contract_id.slice(0, 8)}
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`badge ${meta.class}`}>{meta.label}</span>
+                    </td>
+                    <td>
+                      {c.final_report?.overall_risk ? (
+                        <RiskBadge level={c.final_report.overall_risk} />
+                      ) : (
+                        <span className="badge badge-unknown">—</span>
+                      )}
+                    </td>
+                    <td style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+                      {formatDate(c.updated_at)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+          <div style={{ display: "flex", justifyContent: "flex-end", padding: "var(--space-4)" }}>
+            <Link to="/contracts" className="btn-text" style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-1)" }}>
+              Voir tous les contrats <ArrowRight size={14} />
+            </Link>
+          </div>
         </div>
 
         <div className="card">
