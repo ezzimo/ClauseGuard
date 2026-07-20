@@ -40,10 +40,10 @@ def _wait_for_status(client, token, cid, target_statuses, timeout=10):
 
 
 def _cleanup(cid):
-    state_path = Path("storage") / f"{cid}.json"
+    state_path = Path(settings.storage_dir) / f"{cid}.json"
     if state_path.exists():
         state_path.unlink()
-    audit_path = Path("storage") / "audit_log.jsonl"
+    audit_path = Path(settings.storage_dir) / "audit_log.jsonl"
     if audit_path.exists():
         audit_path.unlink()
 

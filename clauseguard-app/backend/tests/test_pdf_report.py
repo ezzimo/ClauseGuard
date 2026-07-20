@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from main import _load_state, _save_state, app
+from main import _load_state, _save_state, app, settings
 from models.schemas import ContractStatus, FinalReport
 from services.pdf_report import build_pdf
 
@@ -61,7 +61,7 @@ def contract_id(client, token):
     assert upload.status_code == 200
     cid = upload.json()["contract_id"]
     yield cid
-    state_path = Path("storage") / f"{cid}.json"
+    state_path = Path(settings.storage_dir) / f"{cid}.json"
     if state_path.exists():
         state_path.unlink()
 

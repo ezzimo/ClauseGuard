@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
 
     storage_dir: str = "storage"
+    audit_log_path: str = ""  # empty = <storage_dir>/audit_log.jsonl
     allowed_origin: str = "http://localhost:5173"
     mcp_sqlite_path: str = "../../clauseguard-mcp/reports.db"
 

@@ -29,6 +29,7 @@ yarn-error.log*
 # Runtime application state
 clauseguard-app/backend/storage/*.json
 clauseguard-app/backend/storage/*.jsonl
+clauseguard-app/backend/storage/_archive_tests/
 clauseguard-app/backend/storage_backup_20juil/*.json
 clauseguard-app/backend/storage_backup_20juil/*.jsonl
 

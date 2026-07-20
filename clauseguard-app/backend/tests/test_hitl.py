@@ -59,7 +59,7 @@ def contract_id(client, token, monkeypatch):
     yield cid
 
     fusion_client.run_flow = original
-    state_path = Path("storage") / f"{cid}.json"
+    state_path = Path(settings.storage_dir) / f"{cid}.json"
     if state_path.exists():
         state_path.unlink()
 

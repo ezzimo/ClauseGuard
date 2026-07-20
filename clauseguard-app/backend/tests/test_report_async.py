@@ -86,10 +86,10 @@ def contract_id(client, token, monkeypatch):
     yield cid
 
     fusion_client.run_flow = original
-    state_path = Path("storage") / f"{cid}.json"
+    state_path = Path(settings.storage_dir) / f"{cid}.json"
     if state_path.exists():
         state_path.unlink()
-    audit_path = Path("storage") / "audit_log.jsonl"
+    audit_path = Path(settings.storage_dir) / "audit_log.jsonl"
     if audit_path.exists():
         audit_path.unlink()
 
@@ -254,9 +254,9 @@ def test_empty_findings_returns_422_without_flow_call(client, token, monkeypatch
         assert calls["report"] == 0
     finally:
         fusion_client.run_flow = original
-        state_path = Path("storage") / f"{cid}.json"
+        state_path = Path(settings.storage_dir) / f"{cid}.json"
         if state_path.exists():
             state_path.unlink()
-        audit_path = Path("storage") / "audit_log.jsonl"
+        audit_path = Path(settings.storage_dir) / "audit_log.jsonl"
         if audit_path.exists():
             audit_path.unlink()

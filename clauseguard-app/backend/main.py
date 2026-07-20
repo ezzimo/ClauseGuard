@@ -68,15 +68,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-STORAGE_PATH = Path(settings.storage_dir).resolve()
-STORAGE_PATH.mkdir(parents=True, exist_ok=True)
-AUDIT_LOG_PATH = STORAGE_PATH / "audit_log.jsonl"
-
 fusion_client = FusionClient()
 
 
+def _storage_path() -> Path:
+    """Resolved storage directory, read from settings on every call (not
+    cached at import time) so tests can redirect it per-test via
+    monkeypatch — see tests/conftest.py's isolated_storage fixture."""
+    path = Path(settings.storage_dir).resolve()
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _audit_log_path() -> Path:
+    if settings.audit_log_path:
+        path = Path(settings.audit_log_path).resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+    return _storage_path() / "audit_log.jsonl"
+
+
 def _contract_path(contract_id: str) -> Path:
-    return STORAGE_PATH / f"{contract_id}.json"
+    return _storage_path() / f"{contract_id}.json"
 
 
 def _save_state(state: ContractState) -> None:
@@ -100,7 +113,7 @@ def _load_state(contract_id: str) -> ContractState:
 
 
 def _append_audit(entry: AuditLogEntry) -> None:
-    with open(AUDIT_LOG_PATH, "a", encoding="utf-8") as fh:
+    with open(_audit_log_path(), "a", encoding="utf-8") as fh:
         fh.write(json.dumps(entry.model_dump(mode="json"), ensure_ascii=False) + "\n")
 
 
@@ -111,7 +124,7 @@ def _append_human_decision_audit(contract_id: str, decision: dict) -> None:
         "actor": "human",
         "decision": decision,
     }
-    with open(AUDIT_LOG_PATH, "a", encoding="utf-8") as fh:
+    with open(_audit_log_path(), "a", encoding="utf-8") as fh:
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
@@ -773,7 +786,7 @@ async def get_report_pdf(
 async def list_contracts(user: dict = Depends(get_current_user)) -> list[dict]:
     """Return a summary list of all stored contracts."""
     contracts: list[dict] = []
-    for path in STORAGE_PATH.glob("*.json"):
+    for path in _storage_path().glob("*.json"):
         if path.name == "audit_log.jsonl":
             continue
         try:
@@ -798,10 +811,11 @@ async def list_contracts(user: dict = Depends(get_current_user)) -> list[dict]:
 async def get_activity(limit: int = 15, user: dict = Depends(get_current_user)) -> list[dict]:
     """Return the most recent audit log entries."""
     entries: list[dict] = []
-    if not AUDIT_LOG_PATH.exists():
+    audit_log_path = _audit_log_path()
+    if not audit_log_path.exists():
         return entries
     try:
-        with open(AUDIT_LOG_PATH, "r", encoding="utf-8") as fh:
+        with open(audit_log_path, "r", encoding="utf-8") as fh:
             lines = fh.readlines()
         for line in reversed(lines[-limit:]):
             line = line.strip()

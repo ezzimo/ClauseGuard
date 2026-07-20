@@ -35,7 +35,7 @@ def main() -> int:
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )
-    state_path = Path("storage") / f"{contract_id}.json"
+    state_path = Path(settings.storage_dir) / f"{contract_id}.json"
     state_path.write_text(json.dumps(state.model_dump(mode="json"), ensure_ascii=False), encoding="utf-8")
 
     original_run_flow = fusion_client.run_flow
@@ -60,7 +60,7 @@ def main() -> int:
         assert stored["status"] == ContractStatus.PARSE_ERROR.value
         assert stored["raw_analysis_response"] == "not valid json"
 
-        audit_lines = Path("storage") / "audit_log.jsonl"
+        audit_lines = Path(settings.storage_dir) / "audit_log.jsonl"
         if audit_lines.exists():
             last = json.loads(audit_lines.read_text(encoding="utf-8").strip().split("\n")[-1])
             assert last["flow_id"] != ""
