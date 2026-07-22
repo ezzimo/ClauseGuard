@@ -19,6 +19,8 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from models.schemas import Finding
 from services.parsing import extract_json_object, strip_markdown_fences
 
+logger = logging.getLogger(__name__)
+
 AuditFn = Callable[[str, str, str, str], None]
 """(flow_id, status_label, action, detail) -> None"""
 
@@ -68,13 +70,28 @@ def _compact_findings_json(findings: list[Finding]) -> str:
 
 
 def _call_critic(findings: list[Finding], trace: QualityTrace) -> CriticResult:
+    logger.info(
+        "[QUALITY_LOOP] Sending request to Fusion CRITIC flow (flow_id=%s, session_id=%s, n_findings=%d)",
+        trace.critic_flow_id,
+        trace.request_id,
+        len(findings),
+    )
     result = trace.fusion_client.run_flow(
         trace.critic_flow_id,
         _compact_findings_json(findings),
         session_id=trace.request_id,
     )
     data = _parse_json(result["response_text"])
-    return CriticResult.model_validate(data)
+    critic = CriticResult.model_validate(data)
+    logger.info(
+        "[QUALITY_LOOP] Received CRITIC response (flow_id=%s, duration=%d ms): global_score=%s, verdict=%s, n_issues=%d",
+        trace.critic_flow_id,
+        result.get("duration_ms", 0),
+        critic.global_score,
+        critic.verdict,
+        len(critic.issues),
+    )
+    return critic
 
 
 def _call_refiner(
@@ -87,6 +104,13 @@ def _call_refiner(
         ],
         "problemes": [i.model_dump(mode="json") for i in issues],
     }
+    logger.info(
+        "[QUALITY_LOOP] Sending request to Fusion REFINER flow (flow_id=%s, session_id=%s, n_flagged=%d, n_issues=%d)",
+        trace.refiner_flow_id,
+        trace.request_id,
+        len(flagged_ids),
+        len(issues),
+    )
     result = trace.fusion_client.run_flow(
         trace.refiner_flow_id,
         json.dumps(payload, separators=(",", ":"), ensure_ascii=False),
@@ -94,6 +118,12 @@ def _call_refiner(
     )
     data = _parse_json(result["response_text"])
     refined = data.get("refined_findings", [])
+    logger.info(
+        "[QUALITY_LOOP] Received REFINER response (flow_id=%s, duration=%d ms): n_refined=%d",
+        trace.refiner_flow_id,
+        result.get("duration_ms", 0),
+        len(refined) if isinstance(refined, list) else 0,
+    )
     return refined if isinstance(refined, list) else []
 
 

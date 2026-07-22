@@ -99,8 +99,6 @@ class DashboardMetrics(BaseModel):
 
 
 class FinalReport(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
     contract_id: str
     request_id: str = ""
     analysis_date: str
@@ -111,6 +109,7 @@ class FinalReport(BaseModel):
     dashboard_metrics: DashboardMetrics
     disclaimer: str
     delivery: str = "full"
+    model_config = ConfigDict(extra="ignore")
 
 
 class ContractContext(BaseModel):

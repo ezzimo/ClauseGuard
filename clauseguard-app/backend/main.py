@@ -39,6 +39,14 @@ from services.quality_loop import QualityTrace, run_quality_loop
 from services.anonymizer import AnonymizationLeakError, mask_pii
 from services.anonymizer.party_extractor import extract_party_names
 
+# Configure root logger level to INFO so all flow logs appear in uvicorn output
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    force=True,
+)
+logging.getLogger().setLevel(logging.INFO)
+
 # Report background job polling schedule: wait REPORT_POLL_INITIAL_DELAY_S before
 # the first DB check (the flow rarely finishes faster than that), then poll every
 # REPORT_POLL_INTERVAL_S until REPORT_POLL_BUDGET_S total has elapsed. Module-level
@@ -131,7 +139,18 @@ def _append_human_decision_audit(contract_id: str, decision: dict) -> None:
 def _run_analysis(flow_id: str, masked_text: str) -> dict:
     context = "CONTEXTE: {side=client, type=prestation_services}\n\nCONTRAT:\n"
     input_text = context + masked_text
+    logging.info(
+        "[FLOW_ANALYSIS] Sending contract analysis request (flow_id=%s, input_len=%d chars)",
+        flow_id,
+        len(input_text),
+    )
     result = fusion_client.run_flow(flow_id, input_text)
+    logging.info(
+        "[FLOW_ANALYSIS] Received contract analysis response (flow_id=%s, status=%s, duration=%d ms)",
+        flow_id,
+        result["status_code"],
+        result["duration_ms"],
+    )
     _append_audit(
         AuditLogEntry(
             timestamp=datetime.now(timezone.utc),
@@ -459,8 +478,21 @@ def _run_report_background(
     # a. Call the v2 flow. ANY exception (including a 504) is expected and
     #    non-fatal: never abort here, just fall through to DB polling.
     try:
+        logging.info(
+            "[FLOW_REPORT] Sending primary report request (flow_id=%s, contract_id=%s, request_id=%s, payload_size=%d bytes)",
+            flow_id,
+            contract_id,
+            request_id,
+            len(payload_json.encode("utf-8")),
+        )
         primary_result = fusion_client.run_flow(
             flow_id, payload_json, retry_on_5xx=False
+        )
+        logging.info(
+            "[FLOW_REPORT] Received primary report response (flow_id=%s, status=%s, duration=%d ms)",
+            flow_id,
+            primary_result["status_code"],
+            primary_result["duration_ms"],
         )
         _append_audit(
             AuditLogEntry(
@@ -484,6 +516,12 @@ def _run_report_background(
             )
     except Exception as exc:
         primary_error = exc
+        logging.warning(
+            "[FLOW_REPORT] Primary report flow dispatch failed/timed out (flow_id=%s, contract_id=%s): %s",
+            flow_id,
+            contract_id,
+            exc,
+        )
         _append_audit(
             AuditLogEntry(
                 timestamp=datetime.now(timezone.utc),
@@ -512,6 +550,11 @@ def _run_report_background(
         try:
             report = FinalReport.model_validate_json(found_json)
             report.delivery = "full_db"
+            logging.info(
+                "[FLOW_REPORT] Successfully recovered report from SQLite DB for contract_id=%s (request_id=%s)",
+                contract_id,
+                request_id,
+            )
             _append_audit(
                 AuditLogEntry(
                     timestamp=datetime.now(timezone.utc),
@@ -535,8 +578,20 @@ def _run_report_background(
 
     if report is None and fallback_id:
         try:
+            logging.info(
+                "[FLOW_REPORT_FALLBACK] Sending fallback report request (fallback_id=%s, contract_id=%s, request_id=%s)",
+                fallback_id,
+                contract_id,
+                request_id,
+            )
             fallback_result = fusion_client.run_flow(
                 fallback_id, payload_json, retry_on_5xx=True
+            )
+            logging.info(
+                "[FLOW_REPORT_FALLBACK] Received fallback report response (fallback_id=%s, status=%s, duration=%d ms)",
+                fallback_id,
+                fallback_result["status_code"],
+                fallback_result["duration_ms"],
             )
             _append_audit(
                 AuditLogEntry(

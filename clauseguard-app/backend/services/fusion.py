@@ -1,3 +1,4 @@
+import logging
 import time
 from typing import Any, Optional
 
@@ -5,6 +6,8 @@ import requests
 
 from config import settings
 from services.auth import FusionAuth
+
+logger = logging.getLogger(__name__)
 
 
 class FusionClient:
@@ -36,6 +39,13 @@ class FusionClient:
         last_status: int = 0
         last_error: Optional[Exception] = None
 
+        logger.info(
+            "Executing Fusion flow flow_id=%s (session_id=%s, payload_bytes=%d)",
+            flow_id,
+            session_id,
+            len(message.encode("utf-8")),
+        )
+
         for attempt in range(3):
             start = time.perf_counter()
             try:
@@ -49,6 +59,7 @@ class FusionClient:
                 last_status = response.status_code
 
                 if response.status_code == 401:
+                    logger.warning("Fusion API 401 Unauthorized for flow_id=%s, refreshing token...", flow_id)
                     self.auth.refresh()
                     response = self.auth.session.post(
                         url,
@@ -65,6 +76,12 @@ class FusionClient:
                 response.raise_for_status()
                 payload = response.json()
                 text = self._extract_response_text(payload)
+                logger.info(
+                    "Fusion flow flow_id=%s succeeded in %d ms (status=%d)",
+                    flow_id,
+                    duration_ms,
+                    response.status_code,
+                )
                 return {
                     "response_text": text,
                     "status_code": response.status_code,
@@ -73,12 +90,20 @@ class FusionClient:
 
             except requests.exceptions.HTTPError as exc:
                 last_error = exc
+                logger.error(
+                    "Fusion flow flow_id=%s failed attempt %d/3: status=%d, error=%s",
+                    flow_id,
+                    attempt + 1,
+                    last_status,
+                    exc,
+                )
                 if attempt < 2 and 500 <= last_status < 600 and retry_on_5xx:
                     time.sleep(0.5 * (attempt + 1))
                     continue
                 raise
             except Exception as exc:
                 last_error = exc
+                logger.error("Fusion flow flow_id=%s failed with exception: %s", flow_id, exc)
                 raise
 
         raise RuntimeError(
