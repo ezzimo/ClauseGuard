@@ -49,13 +49,9 @@ export default function Layout({ children }) {
     <div className={`app-shell ${collapsed ? "collapsed" : ""}`}>
       <aside className="sidebar">
         <div className="sidebar-header">
-          <Link to="/" className="wordmark">
-            <span className="wordmark-full">
-              Clause<span className="wordmark-accent">Guard</span>
-            </span>
-            <span className="wordmark-mark">
-              C<span className="wordmark-accent">G</span>
-            </span>
+          <Link to="/" className="wordmark" style={{ display: "flex", alignItems: "center" }}>
+            <img src="/clauseguard_logo.png" alt="ClauseGuard" height="32" />
+            <span className="wordmark-full" style={{ color: "var(--color-primary)", fontWeight: 600, fontSize: "1.1rem", marginLeft: "8px" }}>ClauseGuard</span>
           </Link>
           <button
             type="button"

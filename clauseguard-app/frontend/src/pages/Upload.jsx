@@ -188,6 +188,12 @@ export default function Upload() {
         }}
       >
         <div className="card">
+          <div style={{ textAlign: "center", marginBottom: "var(--space-4)" }}>
+            <img src="/clauseguard_logo.png" alt="ClauseGuard Logo" style={{ height: "64px", margin: "0 auto 6px" }} />
+            <div style={{ color: "var(--color-primary, #0B2545)", fontWeight: 700, fontSize: "1.25rem" }}>
+              ClauseGuard
+            </div>
+          </div>
           <div
             className={`dropzone ${dragActive ? "active" : ""} ${file ? "has-file" : ""}`}
             onDragEnter={handleDrag}

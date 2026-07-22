@@ -12,6 +12,7 @@ Layout notes:
 
 import io
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from reportlab.lib import colors
@@ -19,11 +20,13 @@ from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.platypus import (
     BaseDocTemplate,
     Flowable,
     Frame,
+    Image,
     PageTemplate,
     Paragraph,
     Spacer,
@@ -32,6 +35,25 @@ from reportlab.platypus import (
 )
 
 from models.schemas import FinalReport, ReportClause
+
+
+def _find_logo_path() -> Optional[Path]:
+    try:
+        backend_dir = Path(__file__).resolve().parent.parent
+        candidates = [
+            backend_dir.parent / "frontend" / "public" / "clauseguard_logo.png",
+            backend_dir.parent / "frontend" / "src" / "assets" / "clauseguard_logo.png",
+            backend_dir / "public" / "clauseguard_logo.png",
+            backend_dir / "src" / "assets" / "clauseguard_logo.png",
+            backend_dir.parent / "public" / "clauseguard_logo.png",
+            backend_dir.parent / "src" / "assets" / "clauseguard_logo.png",
+        ]
+        for p in candidates:
+            if p.exists():
+                return p
+    except Exception:
+        pass
+    return None
 
 PAGE_SIZE = A4
 PAGE_WIDTH, PAGE_HEIGHT = PAGE_SIZE
@@ -250,8 +272,30 @@ def _draw_chrome(canvas_obj: pdfcanvas.Canvas, _doc, disclaimer: str) -> None:
     canvas_obj.setFillColor(NAVY)
     canvas_obj.rect(0, PAGE_HEIGHT - HEADER_HEIGHT, PAGE_WIDTH, HEADER_HEIGHT, fill=1, stroke=0)
     canvas_obj.setFillColor(colors.white)
+
+    logo_path = _find_logo_path()
+    text_x = MARGIN
+    if logo_path:
+        try:
+            img = ImageReader(str(logo_path))
+            logo_height = 18.0
+            logo_width = 18.0 * (316.0 / 298.0)
+            logo_y = PAGE_HEIGHT - (HEADER_HEIGHT / 2) - (logo_height / 2)
+            canvas_obj.drawImage(
+                img,
+                MARGIN,
+                logo_y,
+                width=logo_width,
+                height=logo_height,
+                mask="auto",
+                preserveAspectRatio=True,
+            )
+            text_x = MARGIN + logo_width + 8
+        except Exception:
+            text_x = MARGIN
+
     canvas_obj.setFont("Helvetica-Bold", 13)
-    canvas_obj.drawString(MARGIN, PAGE_HEIGHT - HEADER_HEIGHT / 2 - 4, "ClauseGuard")
+    canvas_obj.drawString(text_x, PAGE_HEIGHT - HEADER_HEIGHT / 2 - 4, "ClauseGuard")
     canvas_obj.setFont("Helvetica", 9)
     canvas_obj.drawRightString(
         PAGE_WIDTH - MARGIN, PAGE_HEIGHT - HEADER_HEIGHT / 2 - 3, "Rapport de pré-lecture contractuelle"
@@ -459,6 +503,18 @@ def build_pdf(report: FinalReport, filename: str, validated_by: Optional[str] = 
     doc.addPageTemplates([template])
 
     story: list = []
+
+    logo_path = _find_logo_path()
+    if logo_path:
+        try:
+            logo_w = 100.0
+            logo_h = 100.0 * (298.0 / 316.0)
+            cover_logo = Image(str(logo_path), width=logo_w, height=logo_h)
+            cover_logo.hAlign = "CENTER"
+            story.append(cover_logo)
+            story.append(Spacer(1, 10))
+        except Exception:
+            pass
 
     story.append(Paragraph(filename.replace("_", " ").replace(".pdf", ""), styles["title"]))
     story.append(Paragraph(f"Date d'analyse : {report.analysis_date}", styles["meta"]))

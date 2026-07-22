@@ -116,3 +116,19 @@ def test_pdf_internal_endpoint_403_from_non_localhost(contract_id):
     resp = external_client.get(f"/api/contracts/{contract_id}/report/pdf/internal")
     assert resp.status_code == 403
     assert "Forbidden" in resp.json()["detail"] or "forbidden" in resp.json()["detail"].lower()
+
+
+def test_build_pdf_with_logo_present():
+    report = _real_report()
+    pdf_bytes = build_pdf(report, "ClauseGuard_Rapport_logotest.pdf")
+    assert pdf_bytes.startswith(b"%PDF")
+    assert len(pdf_bytes) > 20 * 1024
+
+
+def test_build_pdf_without_logo_present(monkeypatch):
+    import services.pdf_report as pdf_service
+    monkeypatch.setattr(pdf_service, "_find_logo_path", lambda: None)
+    report = _real_report()
+    pdf_bytes = pdf_service.build_pdf(report, "ClauseGuard_Rapport_nologotest.pdf")
+    assert pdf_bytes.startswith(b"%PDF")
+    assert len(pdf_bytes) > 5 * 1024
