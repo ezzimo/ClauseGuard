@@ -5,6 +5,8 @@ import smtplib
 from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
@@ -107,7 +109,12 @@ def sauvegarder_rapport(contract_id: str, request_id: str, report_json: str) -> 
 
 @mcp.tool()
 def envoyer_email_juriste(
-    contract_id: str, overall_risk: str, resume: str, request_id: str = ""
+    contract_id: str,
+    overall_risk: str,
+    resume: str,
+    request_id: str = "",
+    pdf_url: str = "",
+    pdf_filename: str = "",
 ) -> str:
     """Envoie un email recapitulatif au juriste via SMTP Gmail.
 
@@ -136,11 +143,38 @@ def envoyer_email_juriste(
             "Ceci n'est pas un conseil juridique."
         )
 
-        msg = MIMEMultipart()
-        msg["From"] = GMAIL_SENDER
-        msg["To"] = JURISTE_EMAIL
-        msg["Subject"] = subject
-        msg.attach(MIMEText(body, "plain", "utf-8"))
+        if pdf_url:
+            import urllib.request
+            try:
+                with urllib.request.urlopen(pdf_url, timeout=15) as r:
+                    pdf_bytes = r.read()
+                attachment = MIMEBase("application", "pdf")
+                attachment.set_payload(pdf_bytes)
+                encoders.encode_base64(attachment)
+                attachment.add_header(
+                    "Content-Disposition",
+                    "attachment",
+                    filename=pdf_filename or f"ClauseGuard_{contract_id[:8]}.pdf",
+                )
+                msg = MIMEMultipart("mixed")
+                msg["From"] = GMAIL_SENDER
+                msg["To"] = JURISTE_EMAIL
+                msg["Subject"] = subject
+                msg.attach(MIMEText(body, "plain", "utf-8"))
+                msg.attach(attachment)
+                log_action = "email_sent_with_pdf"
+            except Exception as e:
+                log_action = f"email_sent_text_only_pdf_error:{e}"
+                msg = MIMEText(body, "plain", "utf-8")
+                msg["From"] = GMAIL_SENDER
+                msg["To"] = JURISTE_EMAIL
+                msg["Subject"] = subject
+        else:
+            msg = MIMEText(body, "plain", "utf-8")
+            msg["From"] = GMAIL_SENDER
+            msg["To"] = JURISTE_EMAIL
+            msg["Subject"] = subject
+            log_action = "email_sent_text_only"
 
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
             server.starttls()
@@ -156,12 +190,10 @@ def envoyer_email_juriste(
         conn.commit()
         conn.close()
 
-        # Best effort: the caller's request_id may be blank, so fall back to
-        # whatever was recorded on the last saved report for this contract.
         logged_request_id = request_id or _last_request_id_for_contract(contract_id)
         _log(
             "reporting_agent",
-            "email_sent",
+            log_action,
             f"contract_id={contract_id}; risk={overall_risk}; request_id={logged_request_id}",
             request_id=logged_request_id,
         )

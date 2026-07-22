@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     refresh_token_expire_minutes: int = 10080
     algorithm: str = "HS256"
 
+    port: int = 8000
     storage_dir: str = "storage"
     audit_log_path: str = ""  # empty = <storage_dir>/audit_log.jsonl
     allowed_origin: str = "http://localhost:5173"

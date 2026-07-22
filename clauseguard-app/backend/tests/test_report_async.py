@@ -260,3 +260,33 @@ def test_empty_findings_returns_422_without_flow_call(client, token, monkeypatch
         audit_path = Path(settings.storage_dir) / "audit_log.jsonl"
         if audit_path.exists():
             audit_path.unlink()
+
+
+def test_report_payload_has_pdf_url_and_no_pdf_b64(client, token, contract_id, monkeypatch):
+    captured_payloads = []
+
+    def mock_run_flow(flow_id, message, session_id=None, retry_on_5xx=True):
+        captured_payloads.append((flow_id, json.loads(message)))
+        return {
+            "response_text": SAMPLE_REPORT.read_text(encoding="utf-8"),
+            "status_code": 200,
+            "duration_ms": 100,
+        }
+
+    monkeypatch.setattr(fusion_client, "run_flow", mock_run_flow)
+
+    resp = client.post(
+        f"/api/contracts/{contract_id}/report",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 202
+
+    time.sleep(0.1)
+
+    assert len(captured_payloads) > 0
+    flow_id, payload_dict = captured_payloads[0]
+    assert "pdf_url" in payload_dict
+    assert payload_dict["pdf_url"].startswith(f"http://127.0.0.1:{settings.port}/api/contracts/{contract_id}/report/pdf/internal")
+    assert "pdf_filename" in payload_dict
+    assert payload_dict["pdf_filename"] == f"ClauseGuard_{contract_id[:8]}.pdf"
+    assert "pdf_b64" not in payload_dict

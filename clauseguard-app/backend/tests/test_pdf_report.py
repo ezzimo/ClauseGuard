@@ -94,3 +94,25 @@ def test_pdf_endpoint_200_with_correct_headers_after_completion(client, token, c
     assert "attachment" in resp.headers["content-disposition"]
     assert resp.content.startswith(b"%PDF")
     assert len(resp.content) > 5 * 1024
+
+
+def test_pdf_internal_endpoint_200_on_localhost_without_auth(client, contract_id):
+    report = _real_report()
+    report_data = report.model_copy(update={"contract_id": contract_id})
+
+    state = _load_state(contract_id)
+    state.final_report = report_data
+    state.status = ContractStatus.COMPLETED
+    _save_state(state)
+
+    resp = client.get(f"/api/contracts/{contract_id}/report/pdf/internal")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/pdf"
+    assert resp.content.startswith(b"%PDF")
+
+
+def test_pdf_internal_endpoint_403_from_non_localhost(contract_id):
+    external_client = TestClient(app, client=("192.168.1.100", 50000))
+    resp = external_client.get(f"/api/contracts/{contract_id}/report/pdf/internal")
+    assert resp.status_code == 403
+    assert "Forbidden" in resp.json()["detail"] or "forbidden" in resp.json()["detail"].lower()

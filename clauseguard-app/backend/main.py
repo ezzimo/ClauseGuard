@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
-from fastapi import Body, Depends, FastAPI, Form, HTTPException, UploadFile, status
+from fastapi import Body, Depends, FastAPI, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -755,12 +755,17 @@ async def generate_report(
     fallback_id = settings.flow_report_fallback_id
     request_id = uuid.uuid4().hex
 
+    pdf_url = f"http://127.0.0.1:{settings.port}/api/contracts/{contract_id}/report/pdf/internal"
+    pdf_filename = f"ClauseGuard_{contract_id[:8]}.pdf"
+
     payload = {
         "audited_findings": state.analysis_result.model_dump(mode="json"),
         "human_decisions": [d.model_dump(mode="json") for d in state.human_decisions],
         "contract_id": contract_id,
         "analysis_date": datetime.now(timezone.utc).isoformat(),
         "request_id": request_id,
+        "pdf_url": pdf_url,
+        "pdf_filename": pdf_filename,
     }
     payload_json = json.dumps(payload)
 
@@ -829,6 +834,36 @@ async def get_report_pdf(
     contract_id_short = contract_id[:8]
     filename = f"ClauseGuard_Rapport_{contract_id_short}.pdf"
     pdf_bytes = build_pdf(state.final_report, filename, validated_by=user.get("username"))
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/contracts/{contract_id}/report/pdf/internal")
+async def get_report_pdf_internal(
+    contract_id: str,
+    request: Request,
+):
+    client_host = request.client.host if request.client else ""
+    if client_host not in ["127.0.0.1", "::1", "testclient"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: localhost only",
+        )
+
+    state = _load_state(contract_id)
+    if not state.final_report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found",
+        )
+
+    contract_id_short = contract_id[:8]
+    filename = f"ClauseGuard_Rapport_{contract_id_short}.pdf"
+    pdf_bytes = build_pdf(state.final_report, filename, validated_by=None)
 
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
